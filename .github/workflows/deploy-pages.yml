@@ -1,14 +1,9 @@
-name: Build and deploy Godot Web
+name: Redirect legacy GitHub Pages game
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Release tag containing StarryPassage-source.zip
-        required: false
-        default: v0.2.0-community
 
 permissions:
   contents: read
@@ -23,72 +18,32 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Resolve release tag
-        id: release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Create redirect page
         shell: bash
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.tag }}" ]]; then
-            tag="${{ inputs.tag }}"
-          else
-            tag="$(gh api "repos/${{ github.repository }}/releases?per_page=1" --jq '.[0].tag_name')"
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-
-      - name: Download project archive
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release download "${{ steps.release.outputs.tag }}" --pattern StarryPassage-source.zip
-
-      - name: Unpack project
-        id: project
-        shell: bash
-        run: |
-          mkdir -p source
-          unzip -q StarryPassage-source.zip -d source
-          if [[ -f source/project.godot ]]; then
-            echo "dir=source" >> "$GITHUB_OUTPUT"
-          elif [[ -f source/StarryPassage/project.godot ]]; then
-            echo "dir=source/StarryPassage" >> "$GITHUB_OUTPUT"
-          else
-            echo "project.godot not found in release archive" >&2
-            exit 1
-          fi
-
-      - name: Install Godot 4.3 and export templates
-        shell: bash
-        run: |
-          curl -fL --retry 3 -o godot.zip \
-            https://github.com/godotengine/godot-builds/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
-          curl -fL --retry 3 -o templates.tpz \
-            https://github.com/godotengine/godot-builds/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
-          unzip -q godot.zip -d godot
-          mkdir -p "$HOME/.local/share/godot/export_templates/4.3.stable"
-          unzip -q templates.tpz -d templates
-          cp -a templates/templates/. "$HOME/.local/share/godot/export_templates/4.3.stable/"
-          chmod +x godot/Godot_v4.3-stable_linux.x86_64
-
-      - name: Export Web build
-        run: |
-          project_dir="${{ steps.project.outputs.dir }}"
-          mkdir -p "$project_dir/web"
-          ./godot/Godot_v4.3-stable_linux.x86_64 \
-            --headless --path "$project_dir" --import
-          ./godot/Godot_v4.3-stable_linux.x86_64 \
-            --headless --path "$project_dir" --export-release Web web/index.html
-          test -s "$project_dir/web/index.html"
-
+          mkdir -p site
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="zh-CN">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <meta http-equiv="refresh" content="0;url=https://starry-passage-metaverse.yjrp9pq529.chatgpt.site/">
+            <link rel="canonical" href="https://starry-passage-metaverse.yjrp9pq529.chatgpt.site/">
+            <title>星路元宇宙</title>
+          </head>
+          <body>
+            <p>正在进入<a href="https://starry-passage-metaverse.yjrp9pq529.chatgpt.site/">星路元宇宙</a>…</p>
+            <script>location.replace("https://starry-passage-metaverse.yjrp9pq529.chatgpt.site/");</script>
+          </body>
+          </html>
+          HTML
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ steps.project.outputs.dir }}/web
+          path: site
 
   deploy:
     environment:
