@@ -8,7 +8,7 @@ on:
       tag:
         description: Release tag containing StarryPassage-source.zip
         required: false
-        default: v0.1.0-alpha
+        default: v0.2.0-community
 
 permissions:
   contents: read
@@ -45,7 +45,19 @@ jobs:
         run: gh release download "${{ steps.release.outputs.tag }}" --pattern StarryPassage-source.zip
 
       - name: Unpack project
-        run: unzip -q StarryPassage-source.zip
+        id: project
+        shell: bash
+        run: |
+          mkdir -p source
+          unzip -q StarryPassage-source.zip -d source
+          if [[ -f source/project.godot ]]; then
+            echo "dir=source" >> "$GITHUB_OUTPUT"
+          elif [[ -f source/StarryPassage/project.godot ]]; then
+            echo "dir=source/StarryPassage" >> "$GITHUB_OUTPUT"
+          else
+            echo "project.godot not found in release archive" >&2
+            exit 1
+          fi
 
       - name: Install Godot 4.3 and export templates
         shell: bash
@@ -62,12 +74,13 @@ jobs:
 
       - name: Export Web build
         run: |
-          mkdir -p StarryPassage/web
+          project_dir="${{ steps.project.outputs.dir }}"
+          mkdir -p "$project_dir/web"
           ./godot/Godot_v4.3-stable_linux.x86_64 \
-            --headless --path StarryPassage --import
+            --headless --path "$project_dir" --import
           ./godot/Godot_v4.3-stable_linux.x86_64 \
-            --headless --path StarryPassage --export-release Web web/index.html
-          test -s StarryPassage/web/index.html
+            --headless --path "$project_dir" --export-release Web web/index.html
+          test -s "$project_dir/web/index.html"
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -75,7 +88,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: StarryPassage/web
+          path: ${{ steps.project.outputs.dir }}/web
 
   deploy:
     environment:
